@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Layers, 
   Sparkles,
@@ -15,7 +15,8 @@ import {
   ChevronLeft,
   SlidersHorizontal,
   Code,
-  User
+  User,
+  Play
 } from 'lucide-react';
 import type { DeviceConfig, Segment, Layer, Preset } from './types/led';
 import { Visualizer } from './components/Visualizer';
@@ -124,6 +125,7 @@ export default function App() {
   const [selectedAvatar, setSelectedAvatar] = useState('avatar-1');
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Profile Edit states
   const [profileDisplayName, setProfileDisplayName] = useState('');
@@ -175,6 +177,7 @@ export default function App() {
   // BLE Device State
   const [activeDevice, setActiveDevice] = useState<BleDevice | null>(null);
   const [activeProtocol, setActiveProtocol] = useState<LedProtocol | null>(null);
+  const lastWriteTimeRef = useRef<number>(0);
 
   const handleConnectDevice = async (device: BleDevice) => {
     await device.connect();
@@ -189,6 +192,8 @@ export default function App() {
       mac: device.mac,
       serviceUuids: device.serviceUuids
     }));
+
+    setCurrentScreen('dashboard');
   };
 
   const handleDisconnectDevice = async () => {
@@ -277,12 +282,8 @@ export default function App() {
     
     if (!activeDevice) {
       setCurrentScreen('ble');
-    } else {
-      if (currentScreen === 'ble') {
-        setCurrentScreen('dashboard');
-      }
     }
-  }, [activeDevice, currentScreen, currentUser]);
+  }, [activeDevice, currentUser]);
 
   // Auto-connect BLE
   useEffect(() => {
@@ -779,6 +780,16 @@ export default function App() {
     const b = Math.round((s1[2] + s2[2] + s3[2]) / 3);
 
     setGlowColor(`rgba(${r}, ${g}, ${b}, 0.15)`);
+
+    // Stream visualizer color updates to the connected device (throttled to 100ms)
+    if (activeProtocol) {
+      const now = Date.now();
+      if (now - lastWriteTimeRef.current > 100) {
+        lastWriteTimeRef.current = now;
+        const targetPixel = colors[0] || [0, 0, 0];
+        activeProtocol.setRGB(targetPixel[0], targetPixel[1], targetPixel[2]).catch(() => {});
+      }
+    }
   };
 
   const selectedLayer = layers.find(l => l.id === selectedLayerId) || null;
@@ -819,10 +830,18 @@ export default function App() {
                 >
                   <ChevronLeft size={20} />
                 </button>
-                <h1 className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white to-purple-300 bg-clip-text text-transparent">
-                  {currentScreen === 'layer-detail' ? t('mobileParams') : 
-                   currentScreen === 'layout-settings' ? t('mobileSetup') : 'BLE Settings'}
-                </h1>
+                {currentScreen === 'layer-detail' ? (
+                  <div className="flex flex-col select-none">
+                    <span className="text-[9px] text-zinc-500 font-mono tracking-wider leading-none mb-0.5">// editing</span>
+                    <span className="font-extrabold text-sm text-white uppercase tracking-wider leading-none">
+                      {selectedLayer?.name || 'PLASMA LAYER'}
+                    </span>
+                  </div>
+                ) : (
+                  <h1 className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white to-purple-300 bg-clip-text text-transparent">
+                    {currentScreen === 'layout-settings' ? t('mobileSetup') : 'BLE Settings'}
+                  </h1>
+                )}
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -866,17 +885,17 @@ export default function App() {
           
           {/* USER AUTH SCREEN (FIRST STEP BEFORE EVERYTHING ELSE) */}
           {!currentUser ? (
-            <div className="flex flex-col gap-5 p-2 animate-fade-in max-w-sm mx-auto justify-center min-h-[70vh]">
+            <div className="flex flex-col gap-6 p-4 animate-fade-in max-w-sm mx-auto justify-center min-h-[75vh]">
               {/* Header / Intro */}
-              <div className="text-center flex flex-col items-center gap-2 mt-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary to-secondary flex items-center justify-center shadow-[0_0_20px_var(--primary-glow)] mb-1">
-                  <Sparkles size={24} className="text-white" />
+              <div className="text-center flex flex-col items-center gap-1.5 mt-2">
+                <div className="w-20 h-20 rounded-[22px] bg-zinc-950/80 border border-purple-500/20 flex items-center justify-center shadow-[0_0_30px_rgba(138,70,255,0.15)] mb-3">
+                  <div className="w-8 h-8 rounded-full border-4 border-[#8a46ff] shadow-[0_0_15px_rgba(138,70,255,0.8)]" />
                 </div>
-                <h2 className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-white to-purple-300 bg-clip-text text-transparent">
-                  SVETI Operator Panel
+                <h2 className="font-extrabold text-2xl text-white tracking-tight">
+                  Welcome back
                 </h2>
-                <p className="text-xs text-zinc-500 max-w-[260px] mx-auto">
-                  Sign in or register to configure your ambient LED parameters and sync presets to the cloud.
+                <p className="text-xs font-mono text-zinc-500 tracking-wide">
+                  // authenticate to continue
                 </p>
               </div>
 
@@ -888,52 +907,59 @@ export default function App() {
               )}
 
               {/* Login / Registration Form */}
-              <form onSubmit={handleAuthSubmit} className="flex flex-col gap-3.5 bg-zinc-900/40 border border-white/5 p-5 rounded-2xl backdrop-blur-md">
-                <span className="text-[10px] text-zinc-500 font-bold uppercase font-mono tracking-wider">
-                  {isSigningUp ? 'Create New Account' : 'Sign In'}
-                </span>
-
+              <form onSubmit={handleAuthSubmit} className="flex flex-col gap-4">
                 {isSigningUp && (
                   <div className="flex flex-col gap-1.5 animate-fade-in">
-                    <label className="text-[10px] text-zinc-400 font-bold">Display Name</label>
+                    <label className="text-[10px] text-zinc-400 font-bold uppercase font-mono tracking-wider">Display Name</label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Neon Rider"
+                      placeholder="e.g. Operator One"
                       value={authDisplayName}
                       onChange={(e) => setAuthDisplayName(e.target.value)}
-                      className="bg-black/60 border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-primary transition-all font-semibold"
+                      className="bg-black/60 border border-white/5 rounded-xl px-3.5 py-3 text-xs text-white focus:outline-none focus:border-[#8a46ff] focus:shadow-[0_0_10px_rgba(138,70,255,0.15)] transition-all font-semibold"
                     />
                   </div>
                 )}
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] text-zinc-400 font-bold">Email Address</label>
+                  <label className="text-[10px] text-zinc-400 font-bold uppercase font-mono tracking-wider">Email</label>
                   <input
                     type="email"
                     required
-                    placeholder="name@example.com"
+                    placeholder="operator@deck.io"
                     value={authEmail}
                     onChange={(e) => setAuthEmail(e.target.value)}
-                    className="bg-black/60 border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-primary transition-all font-semibold font-mono"
+                    className="bg-black/60 border border-white/5 rounded-xl px-3.5 py-3 text-xs text-white focus:outline-none focus:border-[#8a46ff] focus:shadow-[0_0_10px_rgba(138,70,255,0.15)] transition-all font-semibold font-mono"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] text-zinc-400 font-bold">Password</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="••••••••"
-                    value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                    className="bg-black/60 border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-primary transition-all font-semibold"
-                  />
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] text-zinc-400 font-bold uppercase font-mono tracking-wider">Password</label>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      placeholder="••••••••"
+                      value={authPassword}
+                      onChange={(e) => setAuthPassword(e.target.value)}
+                      className="w-full bg-black/60 border border-white/5 rounded-xl px-3.5 py-3 text-xs text-white focus:outline-none focus:border-[#8a46ff] focus:shadow-[0_0_10px_rgba(138,70,255,0.15)] transition-all font-semibold font-mono tracking-widest pr-14"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-accent hover:text-white uppercase tracking-wider font-mono cursor-pointer"
+                    >
+                      {showPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
                 </div>
 
                 {isSigningUp && (
                   <div className="flex flex-col gap-2 border-t border-white/5 pt-2.5 animate-fade-in">
-                    <label className="text-[10px] text-zinc-400 font-bold">Choose Avatar Badge</label>
+                    <label className="text-[10px] text-zinc-400 font-bold uppercase font-mono tracking-wider">Choose Avatar Badge</label>
                     <div className="flex gap-2 justify-between">
                       {[
                         { id: 'avatar-1', bg: 'bg-pink-500', name: 'Cyber Pink' },
@@ -961,35 +987,19 @@ export default function App() {
                 <button
                   type="submit"
                   disabled={authLoading}
-                  className="w-full py-2.5 mt-2 bg-primary hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-[0_0_12px_var(--primary-glow)] disabled:opacity-40"
+                  className="w-full py-3 mt-2 neon-btn-pink-purple rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
                 >
-                  {authLoading ? 'Processing...' : isSigningUp ? 'Register Account' : 'Sign In'}
+                  {authLoading ? 'Processing...' : isSigningUp ? 'Register Account' : 'Sign In →'}
                 </button>
-
-                <div className="flex justify-between items-center text-[10px] text-zinc-500 font-semibold border-t border-white/5 pt-2.5 mt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSigningUp(!isSigningUp);
-                      setAuthError(null);
-                    }}
-                    className="hover:text-white transition-colors"
-                  >
-                    {isSigningUp ? 'Already registered? Sign In' : 'Need an account? Register'}
-                  </button>
-                </div>
               </form>
 
-              {/* Guest Login Option */}
-              <div className="flex flex-col items-center gap-1.5 mt-2">
-                <span className="text-[10px] text-zinc-600 font-bold uppercase font-mono tracking-wider">or</span>
-                
-                {/* Google Sign In option */}
+              {/* Guest & Google login */}
+              <div className="flex flex-col gap-3.5 mt-1">
                 <button
                   type="button"
                   onClick={handleGoogleLogin}
                   disabled={authLoading}
-                  className="w-full py-2.5 bg-white hover:bg-zinc-100 text-zinc-900 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-[0_0_10px_rgba(255,255,255,0.15)] disabled:opacity-40"
+                  className="w-full py-3 bg-black/60 hover:bg-zinc-900 border border-white/5 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-40"
                 >
                   <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -997,17 +1007,30 @@ export default function App() {
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
                   </svg>
-                  Sign In with Google
+                  Continue with Google
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleGuestLogin}
-                  disabled={authLoading}
-                  className="w-full py-2 bg-zinc-955/60 hover:bg-zinc-900 border border-white/5 text-zinc-300 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
-                >
-                  Continue without registration (Guest)
-                </button>
+                <div className="flex flex-col items-center gap-2 border-t border-white/5 pt-3">
+                  <button
+                    type="button"
+                    onClick={handleGuestLogin}
+                    disabled={authLoading}
+                    className="text-xs text-accent hover:text-white transition-colors font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    Enter as guest →
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSigningUp(!isSigningUp);
+                      setAuthError(null);
+                    }}
+                    className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors font-medium mt-1"
+                  >
+                    {isSigningUp ? 'Already registered? Sign In' : 'Need an account? Register'}
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -1316,115 +1339,165 @@ export default function App() {
 
           {/* SCREEN 2: WORKSPACE (LIVE PREVIEW & LAYERS STACK) */}
           {currentScreen === 'workspace' && (
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 animate-fade-in items-start">
-              
-              {/* Visualizer - Spans 3 columns on desktop */}
-              <div className="md:col-span-3 flex flex-col gap-4">
-                <div className="relative rounded-3xl overflow-hidden bg-black/80 border border-white/5 shadow-inner">
-                  <Visualizer
-                    deviceConfig={deviceConfig}
-                    segments={segments}
-                    layers={layers}
-                    globalBrightness={globalBrightness}
-                    globalSpeed={globalSpeed}
-                    isPlaying={isPlaying}
-                    setIsPlaying={setIsPlaying}
-                    onColorsUpdate={handleColorsUpdate}
-                    t={t}
-                  />
-                  
-                  {/* Floating Export Action Button inside visualizer */}
+            <div className="flex flex-col gap-4 animate-fade-in max-w-sm mx-auto w-full">
+              {/* Scene Header with Playback Controls */}
+              <div className="flex justify-between items-center mb-2">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[10px] text-zinc-500 font-mono tracking-wider">// scene</span>
+                  <h1 className="font-extrabold text-xl text-white tracking-tight uppercase">
+                    {presetTitle || 'UNTITLED.SCENE'}
+                  </h1>
+                </div>
+                
+                {/* Control buttons */}
+                <div className="flex items-center gap-2 shrink-0">
                   <button 
-                    onClick={() => setIsExportOpen(true)}
-                    className="absolute top-3 right-3 px-3 py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-black/80 transition-all shadow-md z-10"
+                    onClick={() => setIsPlaying(false)}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center border transition-all cursor-pointer ${!isPlaying ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-black/40 border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-900'}`}
                   >
-                    <Settings size={12} /> {t('exportArduino')}
+                    <span className="font-mono text-xs font-extrabold">||</span>
+                  </button>
+                  <button 
+                    onClick={() => setIsPlaying(true)}
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isPlaying ? 'neon-btn-pink-purple shadow-[0_0_15px_rgba(255,65,129,0.4)]' : 'bg-black/40 border border-white/5 text-zinc-400 hover:text-white'}`}
+                  >
+                    <Play size={14} className="fill-current ml-0.5 text-white" />
                   </button>
                 </div>
               </div>
 
-              {/* Layers List panel - Spans 2 columns on desktop */}
-              <div className="md:col-span-2 flex flex-col gap-3">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                    <Layers size={14} className="text-primary" />
-                    {t('animationLayers')}
+              {/* Main Visualizer Container */}
+              <div className="relative rounded-2xl overflow-hidden border border-white/5 bg-black/60 shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+                <Visualizer
+                  deviceConfig={deviceConfig}
+                  segments={segments}
+                  layers={layers}
+                  globalBrightness={globalBrightness}
+                  globalSpeed={globalSpeed}
+                  isPlaying={isPlaying}
+                  setIsPlaying={setIsPlaying}
+                  onColorsUpdate={handleColorsUpdate}
+                  t={t}
+                />
+                
+                {/* Floating Export Action Button */}
+                <button 
+                  onClick={() => setIsExportOpen(true)}
+                  className="absolute top-2.5 right-2.5 px-2.5 py-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-white/10 text-white text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 hover:bg-black/90 transition-all z-10 cursor-pointer"
+                >
+                  <Settings size={10} /> {t('exportArduino')}
+                </button>
+              </div>
+
+              {/* Layers Section */}
+              <div className="flex flex-col gap-3 mt-2">
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <h3 className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest font-mono">
+                    Layers
                   </h3>
                   <button
                     onClick={addLayer}
-                    className="px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-bold flex items-center gap-1 hover:bg-primary/20 transition-all shadow-[0_0_10px_rgba(139,92,246,0.15)]"
+                    className="w-6 h-6 rounded-lg bg-[#8a46ff]/10 border border-[#8a46ff]/35 text-[#8a46ff] flex items-center justify-center hover:bg-[#8a46ff]/20 transition-all cursor-pointer"
                   >
-                    <Plus size={12} /> {t('addLayer')}
+                    <Plus size={14} />
                   </button>
                 </div>
 
-                {/* Layer Cards stack container */}
-                <div className="flex flex-col gap-2.5 max-h-[460px] overflow-y-auto pr-1">
-                  {layers.map((l, index) => (
-                    <div
-                      key={l.id}
-                      onClick={() => {
-                        setSelectedLayerId(l.id);
-                        setCurrentScreen('layer-detail');
-                      }}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
-                        selectedLayerId === l.id 
-                        ? 'bg-purple-950/15 border-purple-500/40 shadow-[0_0_15px_rgba(139,92,246,0.1)]' 
-                        : 'bg-zinc-900/40 border-white/5 hover:border-zinc-800'
-                      }`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className={`text-xs font-bold ${selectedLayerId === l.id ? 'text-white' : 'text-zinc-400'}`}>
-                          {l.name}
-                        </span>
+                {/* Layer Cards Stack */}
+                <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1">
+                  {layers.map((l, index) => {
+                    // Generate gradient/solid background preview inline
+                    let previewBackground = '#1f1f2e';
+                    if (l.visible) {
+                      if (l.effectType === 'solid' && l.params.solid) {
+                        previewBackground = l.params.solid.color;
+                      } else if (l.effectType === 'gradient' && l.params.gradient) {
+                        const stops = l.params.gradient.stops.map(s => `${s.color} ${s.offset * 100}%`).join(', ');
+                        previewBackground = `linear-gradient(90deg, ${stops})`;
+                      } else if (l.effectType === 'noise' && l.params.noise) {
+                        previewBackground = `linear-gradient(90deg, ${l.params.noise.colorStart}, ${l.params.noise.colorEnd})`;
+                      } else if (l.effectType === 'chase' && l.params.chase) {
+                        previewBackground = `linear-gradient(90deg, ${l.params.chase.color}, ${l.params.chase.bgColor})`;
+                      } else if (l.effectType === 'audio' && l.params.audio) {
+                        previewBackground = `linear-gradient(90deg, ${l.params.audio.color}, ${l.params.audio.bgColor})`;
+                      }
+                    }
 
-                        {/* Visibility & Delete Controls */}
-                        <div className="flex gap-2.5 items-center" onClick={(e) => e.stopPropagation()}>
+                    return (
+                      <div
+                        key={l.id}
+                        onClick={() => {
+                          setSelectedLayerId(l.id);
+                          setCurrentScreen('layer-detail');
+                        }}
+                        className={`cyber-card px-4 py-3 rounded-xl flex items-center justify-between cursor-pointer transition-all ${
+                          selectedLayerId === l.id 
+                          ? 'border-purple-500/30 bg-[#8a46ff]/5 shadow-[0_0_12px_rgba(138,70,255,0.1)]' 
+                          : 'border-white/5 hover:border-zinc-800'
+                        } ${!l.visible ? 'opacity-40' : ''}`}
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          {/* Eye Toggle Visibility */}
                           <button
-                            onClick={() => toggleLayerVisibility(l.id)}
-                            className="text-zinc-500 hover:text-white transition-colors"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleLayerVisibility(l.id);
+                            }}
+                            className="text-zinc-500 hover:text-white transition-colors cursor-pointer"
                           >
-                            {l.visible ? <Eye size={14} /> : <EyeOff size={14} className="text-zinc-700" />}
+                            {l.visible ? <Eye size={16} /> : <EyeOff size={16} className="text-zinc-700" />}
                           </button>
+
+                          {/* Gradient Thumbnail */}
+                          <div 
+                            className="w-6 h-6 rounded-md border border-white/10 shrink-0" 
+                            style={{ background: previewBackground }}
+                          />
+
+                          {/* Info */}
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-xs font-bold text-white truncate">{l.name}</span>
+                            <span className="text-[9px] text-zinc-500 font-mono tracking-wider font-bold mt-0.5 uppercase">
+                              {l.blendMode} • {Math.round(l.opacity * 100)}%
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Order & Settings controls */}
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex flex-col">
+                            <button
+                              onClick={() => moveLayer(index, 'up')}
+                              disabled={index === 0}
+                              className="p-0.5 text-zinc-500 hover:text-white disabled:opacity-20 cursor-pointer"
+                            >
+                              <ArrowUp size={10} />
+                            </button>
+                            <button
+                              onClick={() => moveLayer(index, 'down')}
+                              disabled={index === layers.length - 1}
+                              className="p-0.5 text-zinc-500 hover:text-white disabled:opacity-20 cursor-pointer"
+                            >
+                              <ArrowDown size={10} />
+                            </button>
+                          </div>
+                          
                           {layers.length > 1 && (
                             <button
                               onClick={() => deleteLayer(l.id)}
-                              className="text-zinc-500 hover:text-red-400 transition-colors"
+                              className="text-zinc-500 hover:text-red-400 p-1 transition-colors cursor-pointer"
+                              title="Delete layer"
                             >
-                              <Trash2 size={14} />
+                              <Trash2 size={13} />
                             </button>
                           )}
                         </div>
                       </div>
-
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider bg-black/30 px-1.5 py-0.5 rounded border border-white/5">
-                          {l.effectType === 'solid' ? t('solid') : l.effectType === 'gradient' ? t('gradient') : l.effectType === 'noise' ? t('noise') : l.effectType === 'chase' ? t('chase') : l.effectType === 'script' ? t('mathScript') : t('audioReact')}
-                        </span>
-
-                        {/* Layer order arrows */}
-                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => moveLayer(index, 'up')}
-                            disabled={index === 0}
-                            className={`p-0.5 rounded text-zinc-500 hover:text-white disabled:opacity-30`}
-                          >
-                            <ArrowUp size={12} />
-                          </button>
-                          <button
-                            onClick={() => moveLayer(index, 'down')}
-                            disabled={index === layers.length - 1}
-                            className={`p-0.5 rounded text-zinc-500 hover:text-white disabled:opacity-30`}
-                          >
-                            <ArrowDown size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
-
             </div>
           )}
 
