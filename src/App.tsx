@@ -782,7 +782,7 @@ export default function App() {
     setGlowColor(`rgba(${r}, ${g}, ${b}, 0.15)`);
 
     // Stream visualizer color updates to the connected device (throttled to 100ms)
-    if (activeProtocol) {
+    if (activeProtocol && currentScreen !== 'ble') {
       const now = Date.now();
       if (now - lastWriteTimeRef.current > 100) {
         lastWriteTimeRef.current = now;
