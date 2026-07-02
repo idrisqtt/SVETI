@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Radio, Bluetooth, RefreshCw, Sliders, Trash2, Power, Music, Play, Square, PlusCircle, ChevronUp, ChevronDown, Timer, Wifi } from 'lucide-react';
+import { Radio, Bluetooth, RefreshCw, Sliders, Trash2, Power, Music, Play, Square, PlusCircle, ChevronUp, ChevronDown, Timer } from 'lucide-react';
 import type { BleDevice } from '../utils/ble/bleDevice';
 import { WebBleDevice, MockBleDevice, WifiDevice } from '../utils/ble/bleDevice';
 import type { LedProtocol } from '../utils/ble/protocols';
@@ -26,16 +26,15 @@ export const BleControlCenter: React.FC<BleControlCenterProps> = ({
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('scan');
   const [isConnecting, setIsConnecting] = useState(false);
-  const [mockDevicesList, setMockDevicesList] = useState<any[]>([]);
+  const [mockDevicesList, setMockDevicesList] = useState<any[]>([
+    { id: 'mock-strip', name: 'NEON-STRIP-01', mac: 'AC:DE:81', rssi: -42, serviceUuids: ['0000fff0-0000-1000-8000-00805f9b34fb'] },
+    { id: 'mock-matrix', name: 'MATRIX-PANEL', mac: '7F:22:9A', rssi: -67, serviceUuids: ['0000ffe0-0000-1000-8000-00805f9b34fb'] }
+  ]);
 
   // WiFi Device connection states
-  const [scanMode, setScanMode] = useState<'ble' | 'wifi'>('ble');
-  const [wifiDevicesList, setWifiDevicesList] = useState<any[]>([
-    { id: 'wifi-192-168-1-100', name: 'Living Room WLED', ip: '192.168.1.100' },
-    { id: 'wifi-192-168-1-142', name: 'Kitchen WLED Panel', ip: '192.168.1.142' }
-  ]);
-  const [customWifiName, setCustomWifiName] = useState('');
-  const [customWifiIp, setCustomWifiIp] = useState('');
+  const customWifiName = 'NEON-STRIP-01';
+  const [customWifiIp, setCustomWifiIp] = useState('192.168.1.42');
+  const [customWifiPort, setCustomWifiPort] = useState('8888');
   
   // Hardware dashboard control states
   const [powerState, setPowerState] = useState(true);
@@ -297,10 +296,8 @@ export const BleControlCenter: React.FC<BleControlCenterProps> = ({
     const simTimeout = window.setTimeout(() => {
       setIsConnecting(false);
       setMockDevicesList([
-        { id: 'mock-strip', name: 'SVETI Smart Strip', mac: 'AA:BB:CC:11:22:33', serviceUuids: ['0000fff0-0000-1000-8000-00805f9b34fb'] },
-        { id: 'mock-matrix', name: 'BanlanX LED Matrix panel', mac: 'FF:EE:DD:44:55:66', serviceUuids: ['0000ffe0-0000-1000-8000-00805f9b34fb'] },
-        { id: 'mock-govee', name: 'Govee TV Backlight H6125', mac: '11:22:33:44:55:66', serviceUuids: ['00010203-0405-0607-0809-0a0b0c0d1910'] },
-        { id: 'mock-happy', name: 'Triones smart bulb', mac: 'AA:55:BB:66:CC:77', serviceUuids: ['0000ffd0-0000-1000-8000-00805f9b34fb'] }
+        { id: 'mock-strip', name: 'NEON-STRIP-01', mac: 'AC:DE:81', rssi: -42, serviceUuids: ['0000fff0-0000-1000-8000-00805f9b34fb'] },
+        { id: 'mock-matrix', name: 'MATRIX-PANEL', mac: '7F:22:9A', rssi: -67, serviceUuids: ['0000ffe0-0000-1000-8000-00805f9b34fb'] }
       ]);
     }, 1200);
 
@@ -356,25 +353,7 @@ export const BleControlCenter: React.FC<BleControlCenterProps> = ({
     }
   };
 
-  const handleAddCustomWifi = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customWifiName.trim() || !customWifiIp.trim()) return;
-    
-    const ipPattern = /^([0-9]{1,3}\.){3}[0-9]{1,3}$/;
-    if (!ipPattern.test(customWifiIp)) {
-      alert("Please enter a valid IP address (e.g. 192.168.1.150)");
-      return;
-    }
 
-    const newDev = {
-      id: `wifi-${customWifiIp.replace(/\./g, '-')}`,
-      name: customWifiName,
-      ip: customWifiIp
-    };
-    setWifiDevicesList(prev => [newDev, ...prev]);
-    setCustomWifiName('');
-    setCustomWifiIp('');
-  };
 
   const handleConnect = async (device: BleDevice) => {
     setIsConnecting(true);
@@ -536,36 +515,7 @@ export const BleControlCenter: React.FC<BleControlCenterProps> = ({
     </div>
   );
 
-  // Radar Sweeping Animation block
-  const RadarSweeper = () => (
-    <div className="p-6 rounded-2xl bg-zinc-900/40 border border-white/5 backdrop-blur-md flex flex-col items-center justify-center gap-4 text-center">
-      <div className="relative w-44 h-44 rounded-full border border-purple-500/20 bg-black/40 flex items-center justify-center overflow-hidden">
-        {isConnecting && (
-          <div className="absolute inset-0 origin-center animate-radar-sweep bg-gradient-to-r from-purple-500/25 to-transparent w-1/2 h-full" />
-        )}
-        <div className="absolute w-32 h-32 rounded-full border border-purple-500/10" />
-        <div className="absolute w-20 h-20 rounded-full border border-purple-500/10" />
-        <div className="absolute w-8 h-8 rounded-full border border-purple-500/10 bg-purple-500/5" />
-        <Bluetooth size={24} className={`text-primary z-10 ${isConnecting ? 'animate-pulse' : ''}`} />
-      </div>
-      <div>
-        <h4 className="text-sm font-bold text-white">
-          {isConnecting ? t('bleScanningActive') : 'Search nearby smart lights'}
-        </h4>
-        <p className="text-[11px] text-zinc-500 mt-1 max-w-[260px] mx-auto">
-          {t('bleScanRealDeviceDesc')}
-        </p>
-      </div>
-      <button
-        onClick={startScan}
-        disabled={isConnecting}
-        className="px-6 py-2.5 rounded-xl bg-primary hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-2 transition-all shadow-[0_0_15px_var(--primary-glow)] disabled:opacity-40"
-      >
-        <RefreshCw size={12} className={isConnecting ? 'animate-spin' : ''} />
-        {isConnecting ? t('bleConnecting') : t('bleStartScan')}
-      </button>
-    </div>
-  );
+
 
   return (
     <div className="flex flex-col gap-4">
@@ -698,7 +648,7 @@ export const BleControlCenter: React.FC<BleControlCenterProps> = ({
                   </div>
 
                   {/* Color picker */}
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-3">
                     <label className="text-[10px] text-zinc-500 font-bold uppercase">{t('colorSelector')}</label>
                     <div className="flex items-center gap-3">
                       <input
@@ -713,6 +663,34 @@ export const BleControlCenter: React.FC<BleControlCenterProps> = ({
                         onChange={(e) => handleColorChange(e.target.value)}
                         className="w-full bg-zinc-950/60 border border-white/5 rounded-xl px-3 py-2 text-sm text-white font-mono uppercase tracking-wider focus:outline-none focus:border-primary transition-colors"
                       />
+                    </div>
+
+                    {/* Quick color preset palette */}
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {[
+                        { name: 'Red', hex: '#ff003c' },
+                        { name: 'Green', hex: '#00ff66' },
+                        { name: 'Blue', hex: '#0066ff' },
+                        { name: 'Purple', hex: '#8b5cf6' },
+                        { name: 'Pink', hex: '#ec4899' },
+                        { name: 'Orange', hex: '#f97316' },
+                        { name: 'Yellow', hex: '#eab308' },
+                        { name: 'Warm', hex: '#fef08a' },
+                        { name: 'Cool', hex: '#e2e8f0' }
+                      ].map((preset) => (
+                        <button
+                          key={preset.hex}
+                          type="button"
+                          onClick={() => handleColorChange(preset.hex)}
+                          style={{ backgroundColor: preset.hex }}
+                          className={`w-7 h-7 rounded-full border border-white/10 hover:scale-110 active:scale-95 transition-all shadow-[0_0_10px_rgba(0,0,0,0.4)] ${
+                            colorVal.toLowerCase() === preset.hex.toLowerCase() 
+                            ? 'ring-2 ring-primary ring-offset-2 ring-offset-black' 
+                            : ''
+                          }`}
+                          title={preset.name}
+                        />
+                      ))}
                     </div>
                   </div>
 
@@ -1048,138 +1026,129 @@ export const BleControlCenter: React.FC<BleControlCenterProps> = ({
               )}
             </>
           ) : (
-            /* Disconnected state: render Radar scanner sweeps or WiFi search options depending on scanMode */
-            <div className="flex flex-col gap-4">
-              
-              {/* Scan Mode Selector */}
-              <div className="grid grid-cols-2 gap-1 p-0.5 bg-black/45 border border-white/5 rounded-xl shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setScanMode('ble')}
-                  className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                    scanMode === 'ble' ? 'bg-primary text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
-                  }`}
-                >
-                  <Bluetooth size={13} /> Bluetooth (BLE)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setScanMode('wifi')}
-                  className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                    scanMode === 'wifi' ? 'bg-primary text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
-                  }`}
-                >
-                  <Wifi size={13} /> WiFi / Network
-                </button>
+            /* Disconnected state: render Dual Scanner (BLE Radar + WiFi Setup) */
+            <div className="flex flex-col gap-6 animate-fade-in w-full max-w-sm mx-auto">
+              {/* Header inside phone frame */}
+              <div className="flex flex-col gap-1 mt-2">
+                <h2 className="font-extrabold text-2xl text-white tracking-tight">Connect a device</h2>
+                <p className="text-xs font-mono text-zinc-500">// choose a transport</p>
               </div>
 
-              {scanMode === 'ble' ? (
-                <div className="flex flex-col gap-4 animate-fade-in">
-                  <RadarSweeper />
-
-                  {/* ==================== MOCK BLE SEARCH BLOCK (EASY TO REMOVE) ==================== */}
-                  {mockDevicesList.length > 0 && (
-                    <div className="p-4 rounded-2xl bg-zinc-900/40 border border-white/5 backdrop-blur-md flex flex-col gap-3 animate-fade-in">
-                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider font-mono">Discovered Bluetooth Lights (Simulated)</span>
-                      <div className="flex flex-col gap-2">
-                        {mockDevicesList.map(mock => (
-                          <div 
-                            key={mock.id}
-                            className="flex items-center justify-between bg-black/45 border border-white/5 p-3 rounded-xl hover:border-primary/20 transition-all group"
-                          >
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-xs font-bold text-white group-hover:text-primary transition-colors truncate">{mock.name}</span>
-                              <span className="text-[9px] text-zinc-500 font-mono mt-0.5">{mock.mac}</span>
-                            </div>
-                            <button
-                              onClick={() => handleConnectMock(mock)}
-                              disabled={isConnecting}
-                              className="px-3 py-1.5 rounded-lg bg-primary hover:bg-purple-500 text-white text-[10px] font-bold transition-all disabled:opacity-40"
-                            >
-                              Connect
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {/* ============================================================================== */}
+              {/* CARD 1: BLE RADAR */}
+              <div className="cyber-card cyber-card-glow p-5 rounded-2xl flex flex-col gap-4">
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span className="text-xs font-bold text-accent uppercase font-mono tracking-wider flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_8px_#00f0ff] animate-ping" />
+                    BLE RADAR
+                  </span>
+                  <span className="text-[10px] text-[#00f0ff]/50 font-bold uppercase font-mono tracking-wider animate-pulse">
+                    SCANNING...
+                  </span>
                 </div>
-              ) : (
-                <div className="flex flex-col gap-4 animate-fade-in">
-                  {/* Form to add custom WLED or WiFi light */}
-                  <form onSubmit={handleAddCustomWifi} className="p-4 rounded-2xl bg-zinc-900/40 border border-white/5 backdrop-blur-md flex flex-col gap-3.5">
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase font-mono tracking-wider">Add Network Controller (WLED / ESP)</span>
+
+                {/* Radar Sweep Circle */}
+                <div className="flex items-center justify-center py-2">
+                  <div className="relative w-36 h-36 rounded-full border border-[#00f0ff]/20 bg-black/40 flex items-center justify-center overflow-hidden">
+                    {/* Rotating sweep line */}
+                    <div className="absolute inset-0 rounded-full animate-radar-sweep pointer-events-none" style={{
+                      background: 'conic-gradient(from 0deg, rgba(0, 240, 255, 0.15) 0deg, rgba(0, 240, 255, 0) 90deg, transparent 360deg)'
+                    }} />
+                    {/* Concentric rings */}
+                    <div className="absolute w-28 h-28 rounded-full border border-[#00f0ff]/5" />
+                    <div className="absolute w-20 h-20 rounded-full border border-[#00f0ff]/5" />
+                    <div className="absolute w-10 h-10 rounded-full border border-[#00f0ff]/5" />
                     
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[9px] text-zinc-400 font-bold font-mono uppercase">Device Name</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. Bed WLED"
-                          value={customWifiName}
-                          onChange={(e) => setCustomWifiName(e.target.value)}
-                          className="bg-black/60 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-primary transition-all font-semibold"
-                        />
-                      </div>
-                      
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[9px] text-zinc-400 font-bold font-mono uppercase">IP Address</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. 192.168.1.150"
-                          value={customWifiIp}
-                          onChange={(e) => setCustomWifiIp(e.target.value)}
-                          className="bg-black/60 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-primary transition-all font-semibold font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full py-2 bg-primary hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-[0_0_10px_var(--primary-glow)]"
-                    >
-                      + Add WiFi Device
-                    </button>
-                  </form>
-
-                  {/* Discovered WiFi devices list */}
-                  <div className="p-4 rounded-2xl bg-zinc-900/40 border border-white/5 backdrop-blur-md flex flex-col gap-3">
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase font-mono tracking-wider">WiFi Devices on Local Network</span>
-                    <div className="flex flex-col gap-2">
-                      {wifiDevicesList.map(wifi => (
-                        <div 
-                          key={wifi.id}
-                          className="flex items-center justify-between bg-black/45 border border-white/5 p-3 rounded-xl hover:border-primary/20 transition-all group"
-                        >
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-xs font-bold text-white group-hover:text-primary transition-colors truncate">{wifi.name}</span>
-                            <span className="text-[9px] text-zinc-500 font-mono mt-0.5">{wifi.ip}</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleConnectWifi(wifi.name, wifi.ip)}
-                              disabled={isConnecting}
-                              className="px-3 py-1.5 rounded-lg bg-primary hover:bg-purple-500 text-white text-[10px] font-bold transition-all disabled:opacity-40"
-                            >
-                              Connect
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setWifiDevicesList(prev => prev.filter(w => w.id !== wifi.id))}
-                              className="p-1 text-zinc-500 hover:text-red-400 transition-colors"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    {/* Crosshairs */}
+                    <div className="absolute top-0 bottom-0 left-1/2 w-[0.5px] bg-[#00f0ff]/5 -translate-x-1/2" />
+                    <div className="absolute left-0 right-0 top-1/2 h-[0.5px] bg-[#00f0ff]/5 -translate-y-1/2" />
+                    
+                    {/* Radar Blip Dots */}
+                    <div className="absolute w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_6px_#00f0ff] animate-pulse" style={{ top: '30%', left: '40%' }} />
+                    <div className="absolute w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_6px_#00f0ff] animate-pulse" style={{ top: '52%', left: '64%' }} />
+                    <div className="absolute w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_6px_#00f0ff] animate-pulse" style={{ top: '65%', left: '25%' }} />
+                    
+                    <Bluetooth size={20} className="text-[#00f0ff] opacity-40 z-10" />
                   </div>
                 </div>
-              )}
+
+                {/* Discovered Device List */}
+                <div className="flex flex-col gap-2.5">
+                  {mockDevicesList.map((mock) => {
+                    const isNeonStrip = mock.name === 'NEON-STRIP-01';
+                    return (
+                      <div 
+                        key={mock.id}
+                        className="flex items-center justify-between bg-black/40 border border-white/5 px-3.5 py-2.5 rounded-xl hover:border-purple-500/20 transition-all"
+                      >
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs font-extrabold text-white">{mock.name}</span>
+                          <span className="text-[9px] text-zinc-500 font-mono mt-0.5 font-bold">
+                            {mock.rssi ? `${mock.rssi} dBm` : '-50 dBm'} • {mock.mac}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleConnectMock(mock)}
+                          disabled={isConnecting}
+                          className={`px-3 py-1.5 rounded-lg text-[9px] font-extrabold transition-all tracking-wider uppercase cursor-pointer ${
+                            isNeonStrip 
+                            ? 'bg-[#8a46ff]/15 border border-[#8a46ff]/45 text-[#8a46ff] shadow-[0_0_10px_rgba(138,70,255,0.15)] hover:bg-[#8a46ff]/25'
+                            : 'bg-zinc-800/40 border border-zinc-700/30 text-zinc-500 hover:text-zinc-400'
+                          }`}
+                        >
+                          Pair
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* CARD 2: WIFI / IP SETUP */}
+              <div className="cyber-card p-5 rounded-2xl flex flex-col gap-4" style={{ borderColor: 'rgba(138, 70, 255, 0.15)' }}>
+                <div className="border-b border-white/5 pb-2">
+                  <span className="text-xs font-bold text-[#ff4181] uppercase font-mono tracking-wider flex items-center gap-1.5">
+                    ◆ WIFI / IP SETUP
+                  </span>
+                </div>
+
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  handleConnectWifi(customWifiName, customWifiIp);
+                }} className="flex flex-col gap-3.5">
+                  
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] text-zinc-500 font-bold font-mono uppercase tracking-wide">IP Address</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="192.168.1.42"
+                      value={customWifiIp}
+                      onChange={(e) => setCustomWifiIp(e.target.value)}
+                      className="bg-black/60 border border-white/5 rounded-xl px-3.5 py-3 text-xs text-white focus:outline-none focus:border-[#8a46ff] transition-all font-semibold font-mono"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] text-zinc-500 font-bold font-mono uppercase tracking-wide">Port</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="8888"
+                      value={customWifiPort}
+                      onChange={(e) => setCustomWifiPort(e.target.value)}
+                      className="bg-black/60 border border-white/5 rounded-xl px-3.5 py-3 text-xs text-white focus:outline-none focus:border-[#8a46ff] transition-all font-semibold font-mono"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isConnecting}
+                    className="w-full py-3 mt-2 neon-btn-pink-purple rounded-xl text-xs font-extrabold uppercase tracking-widest cursor-pointer disabled:opacity-40"
+                  >
+                    {isConnecting ? 'Connecting...' : 'Connect'}
+                  </button>
+                </form>
+              </div>
             </div>
           )}
 
